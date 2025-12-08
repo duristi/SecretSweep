@@ -4,7 +4,7 @@
 ![License](https://img.shields.io/badge/License-MIT-green)
 ![Status](https://img.shields.io/badge/Status-Stable-brightgreen)
 
-**SecretSweep**, geliştiriciler için tasarlanmış, proje dosyaları içinde unutulmuş hassas verileri (Kredi Kartı, API Anahtarları, TCKN vb.) tespit eden, modern arayüze sahip bir **Açık Kaynak Kodlu DLP (Data Loss Prevention)** aracıdır.
+**SecretSweep**, geliştiriciler için tasarlanmış, proje dosyaları içinde unutulmuş hassas verileri (Kredi Kartı, API Anahtarları, TCKN vb.) tespit eden, modern arayüze sahip bir **Açık Kaynak Kodlu veri keşif** aracıdır.
 
 ---
 
