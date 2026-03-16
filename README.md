@@ -1,4 +1,4 @@
-# 🐍 SecretSweep v2.1
+# 🐍 SecretSweep v2.2
 
 ![Python](https://img.shields.io/badge/Python-3.10%2B-blue)
 ![License](https://img.shields.io/badge/License-MIT-green)
@@ -11,10 +11,13 @@
 ## 🚀 Özellikler
 
 * **🕵️‍♂️ Kod Odaklı Tarama:** Kaynak kodları (.py, .js, .txt vb.) tarar; resim ve binary dosyaları atlar.
-* **🛡️ Akıllı Doğrulama:** Luhn Algoritması ile "sahte" kredi kartı numaralarını eler, sadece matematiksel olarak geçerli olanları raporlar.
+* **🛡️ Akıllı Doğrulama:** Luhn Algoritması ile "sahte" kredi kartı numaralarını eler; TCKN algoritması ile geçersiz kimlik numaralarını filtreler.
 * **🎨 Modern Arayüz:** CustomTkinter ile geliştirilmiş, Dark Mode destekli şık tasarım.
 * **📊 Dinamik Logo:** Harici resim dosyasına ihtiyaç duymaz, logoyu kod çalışırken RAM üzerinde çizer.
-* **📂 Raporlama:** Sonuçları otomatik olarak detaylı bir JSON dosyası olarak kaydeder.
+* **📂 Raporlama:** Sonuçları otomatik olarak detaylı bir JSON dosyası olarak kaydeder; raporu tek tıkla açma butonu içerir.
+* **⏹ Tarama İptali:** Uzun süren taramaları dilediğiniz an durdurabilirsiniz.
+* **⏱️ Geçen Süre:** Tarama bitince kaç saniye sürdüğü gösterilir.
+* **⚠️ Hata Raporlama:** Okunamayan dosyalar sessizce geçilmez; log ekranında bildirilir.
 
 ## 🛠️ Kurulum
 
@@ -39,6 +42,7 @@ python main.py
 2. **📁 Proje Klasörü Seç** butonuna tıklayarak taramak istediğiniz dizini seçin.
 3. **TARAMAYI BAŞLAT** butonuna basın.
 4. Sonuçlar ekranda görüntülenecek ve otomatik olarak bir JSON raporu, seçilen klasörün içine kaydedilecektir.
+5. Tarama bittikten sonra **📄 Raporu Aç** butonu ile raporu doğrudan açabilirsiniz.
 
 ## 🔍 Tespit Edilen Veri Tipleri
 
@@ -48,10 +52,15 @@ python main.py
 | MASTER | Mastercard numarası (Luhn doğrulamalı) |
 | AMEX | American Express numarası (Luhn doğrulamalı) |
 | TR_IBAN | Türkiye IBAN numarası |
-| TCKN | Türkiye Cumhuriyeti Kimlik Numarası |
+| TCKN | TC Kimlik Numarası (algoritma doğrulamalı) |
 | AWS_KEY | AWS Erişim Anahtarı (AKIA...) |
 | PRIVATE_KEY | PEM formatında özel anahtar başlığı |
 | EMAIL | E-posta adresi |
+| JWT_TOKEN | JSON Web Token (eyJ...) |
+| GITHUB_TOKEN | GitHub Personal/OAuth/Server token (ghp\_, gho\_, ghs\_) |
+| STRIPE_KEY | Stripe API anahtarı (sk\_/pk\_live/test\_...) |
+| GOOGLE_API_KEY | Google API anahtarı (AIza...) |
+| BEARER_TOKEN | HTTP Authorization Bearer token |
 
 ## ⚠️ Güvenlik Notu
 
