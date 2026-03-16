@@ -2,6 +2,8 @@ import os
 import re
 import json
 import threading
+import subprocess
+import sys
 from datetime import datetime
 import tkinter as tk
 from tkinter import filedialog, messagebox
@@ -22,7 +24,13 @@ PATTERNS = {
     "TCKN": r"\b[1-9][0-9]{9}[02468]\b",
     "AWS_KEY": r"\bAKIA[0-9A-Z]{16}\b",
     "PRIVATE_KEY": r"-----BEGIN [A-Z]+ PRIVATE KEY-----",
-    "EMAIL": r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b"
+    "EMAIL": r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b",
+    # Yeni örüntüler
+    "JWT_TOKEN": r"\beyJ[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]+\b",
+    "GITHUB_TOKEN": r"\b(?:ghp|gho|ghs)_[A-Za-z0-9]{36}\b",
+    "STRIPE_KEY": r"\b(?:sk|pk)_(?:live|test)_[A-Za-z0-9]{24,}\b",
+    "GOOGLE_API_KEY": r"\bAIza[A-Za-z0-9\-_]{35}\b",
+    "BEARER_TOKEN": r"(?i)bearer\s+([A-Za-z0-9\-_\.]{20,})",
 }
 
 IGNORE_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.exe', '.dll', '.zip', '.pdf', '.docx', '.git'}
@@ -120,6 +128,8 @@ class SecretSweepApp(ctk.CTk):
 
         self.target_folder = ""
         self.is_scanning = False
+        self._cancel_scan = False
+        self._last_report_path = ""
 
     # -------------------------------------------------------------------------
     # TAB 1: TARAMA ARAYÜZÜ
@@ -155,6 +165,12 @@ class SecretSweepApp(ctk.CTk):
         self.btn_start = ctk.CTkButton(control_frame, text="TARAMAYI BAŞLAT ▶", command=self.start_scan_thread, state="disabled", fg_color="#2CC985", text_color="white", font=("Roboto", 14, "bold"))
         self.btn_start.grid(row=0, column=2, padx=20, pady=20)
 
+        self.btn_cancel = ctk.CTkButton(control_frame, text="⏹ İptal", command=self.cancel_scan, state="disabled", fg_color="#E05252", text_color="white", font=("Roboto", 14, "bold"))
+        self.btn_cancel.grid(row=0, column=3, padx=(0, 20), pady=20)
+
+        self.btn_open_report = ctk.CTkButton(control_frame, text="📄 Raporu Aç", command=self.open_report, state="disabled", font=("Roboto", 13))
+        self.btn_open_report.grid(row=0, column=4, padx=(0, 20), pady=20)
+
         # Progress Bar
         self.progress_bar = ctk.CTkProgressBar(control_frame, height=15)
         self.progress_bar.grid(row=1, column=0, columnspan=3, padx=20, pady=(0, 20), sticky="ew")
@@ -185,8 +201,23 @@ class SecretSweepApp(ctk.CTk):
         2. 'Proje Klasörü Seç' butonu ile taramak istediğiniz dizini seçin.
         3. 'TARAMAYI BAŞLAT' butonuna basın.
         4. Sonuçlar ekranda belirecek ve otomatik olarak JSON raporu oluşturulacaktır.
+        5. Tarama bittikten sonra 'Raporu Aç' butonu ile raporu açabilirsiniz.
+        6. Uzun süren taramaları 'İptal' butonu ile durdurabilirsiniz.
 
-        [3] GÜVENLİK NOTU
+        [3] TESPİT EDİLEN VERİ TİPLERİ
+        - Kredi Kartı: VISA, MASTER, AMEX (Luhn algoritması ile doğrulanır)
+        - TR_IBAN: Türkiye IBAN numarası
+        - TCKN: TC Kimlik Numarası (algoritma ile doğrulanır)
+        - AWS_KEY: AWS erişim anahtarı (AKIA...)
+        - PRIVATE_KEY: PEM özel anahtar başlığı
+        - EMAIL: E-posta adresi
+        - JWT_TOKEN: JSON Web Token (eyJ...)
+        - GITHUB_TOKEN: GitHub kişisel/OAuth/Server token
+        - STRIPE_KEY: Stripe API anahtarı
+        - GOOGLE_API_KEY: Google API anahtarı (AIza...)
+        - BEARER_TOKEN: HTTP Authorization Bearer token
+
+        [4] GÜVENLİK NOTU
         - Bu uygulama tamamen çevrimdışı (offline) çalışır.
         - Bulunan veriler dışarıya gönderilmez.
         - Bu yazılım sadece eğitim ve güvenlik testi amaçlı geliştirilmiştir. Kendi projelerinizin güvenliğini sağlamak için kullanınız. Başka sistemlerde izinsiz kullanımdan doğacak sorumluluk kullanıcıya aittir.
@@ -207,7 +238,7 @@ class SecretSweepApp(ctk.CTk):
         ctk.CTkLabel(frame_about, text="", image=self.logo_img_large).pack(pady=20)
 
         ctk.CTkLabel(frame_about, text="SecretSweep", font=("Roboto", 32, "bold")).pack()
-        ctk.CTkLabel(frame_about, text="v2.1 Stable", font=("Roboto", 16), text_color="#2CC985").pack(pady=(0, 20))
+        ctk.CTkLabel(frame_about, text="v2.2 Stable", font=("Roboto", 16), text_color="#2CC985").pack(pady=(0, 20))
 
         info_text = "Geliştirici: Gökmen Durişti\nVizyon: 2025 Security Tools"
         ctk.CTkLabel(frame_about, text=info_text, font=("Roboto", 18), text_color="#aebed4").pack(pady=10)
@@ -217,6 +248,18 @@ class SecretSweepApp(ctk.CTk):
     # -------------------------------------------------------------------------
     # MANTIK VE İŞLEVLER
     # -------------------------------------------------------------------------
+    def open_report(self):
+        if self._last_report_path and os.path.isfile(self._last_report_path):
+            try:
+                if sys.platform.startswith("win"):
+                    os.startfile(self._last_report_path)
+                elif sys.platform == "darwin":
+                    subprocess.run(["open", self._last_report_path], check=True)
+                else:
+                    subprocess.run(["xdg-open", self._last_report_path], check=True)
+            except Exception:
+                messagebox.showerror("Hata", f"Rapor açılamadı:\n{self._last_report_path}")
+
     def select_folder(self):
         folder = filedialog.askdirectory()
         if folder:
@@ -233,6 +276,8 @@ class SecretSweepApp(ctk.CTk):
 
     def validate_luhn(self, card_number):
         digits = [int(d) for d in str(card_number) if d.isdigit()]
+        if not digits:
+            return False
         checksum = 0
         for i, digit in enumerate(reversed(digits)):
             if i % 2 == 1:
@@ -242,18 +287,40 @@ class SecretSweepApp(ctk.CTk):
                 checksum += digit
         return checksum % 10 == 0
 
+    def validate_tckn(self, tckn_str):
+        """TC Kimlik Numarası algoritması ile doğrulama yapar."""
+        digits_only = "".join(c for c in tckn_str if c.isdigit())
+        if len(digits_only) != 11 or digits_only[0] == "0":
+            return False
+        d = [int(c) for c in digits_only]
+        # 10. hane: tek konumdaki rakamlar toplamının 7 katı - çift konumdaki toplamı, mod 10
+        if (sum(d[i] for i in range(0, 9, 2)) * 7 - sum(d[i] for i in range(1, 8, 2))) % 10 != d[9]:
+            return False
+        # 11. hane: ilk 10 rakamın toplamının mod 10'u
+        if sum(d[0:10]) % 10 != d[10]:
+            return False
+        return True
+
     def start_scan_thread(self):
         if not self.target_folder: return
         self.is_scanning = True
+        self._cancel_scan = False
         self.btn_start.configure(state="disabled")
         self.btn_select.configure(state="disabled")
+        self.btn_cancel.configure(state="normal")
         self.progress_bar.set(0)
         self.textbox.delete("1.0", "end")
         threading.Thread(target=self.run_scan, daemon=True).start()
 
+    def cancel_scan(self):
+        self._cancel_scan = True
+        self.btn_cancel.configure(state="disabled")
+        self.after(0, lambda: self.lbl_status.configure(text="İptal ediliyor..."))
+
     def run_scan(self):
-        self.log_message(f">>> SCAN STARTED AT {datetime.now().strftime('%H:%M:%S')}")
-        self.log_message("-" * 60)
+        start_time = datetime.now()
+        self.after(0, lambda: self.log_message(f">>> SCAN STARTED AT {start_time.strftime('%H:%M:%S')}"))
+        self.after(0, lambda: self.log_message("-" * 60))
         
         file_list = []
         for root, _, files in os.walk(self.target_folder):
@@ -264,21 +331,27 @@ class SecretSweepApp(ctk.CTk):
         
         total_files = len(file_list)
         found_issues = []
+        error_count = 0
 
         if total_files == 0:
-            self.log_message(">>> No eligible files found in the selected directory.")
-            self.is_scanning = False
-            self.btn_start.configure(state="normal")
-            self.btn_select.configure(state="normal")
-            self.lbl_status.configure(text="Taranacak dosya bulunamadı.")
+            self.after(0, lambda: self.log_message(">>> No eligible files found in the selected directory."))
+            self.after(0, lambda: self.lbl_status.configure(text="Taranacak dosya bulunamadı."))
+            self.after(0, self._reset_buttons)
             return
 
         for index, file_path in enumerate(file_list):
+            if self._cancel_scan:
+                self.after(0, lambda: self.log_message(">>> SCAN CANCELLED BY USER."))
+                break
+
+            progress = (index + 1) / total_files
+            basename = os.path.basename(file_path)
+            self.after(0, lambda p=progress, n=basename: (
+                self.progress_bar.set(p),
+                self.lbl_status.configure(text=f"Scanning: {n}")
+            ))
+
             try:
-                progress = (index + 1) / total_files
-                self.progress_bar.set(progress)
-                self.lbl_status.configure(text=f"Scanning: {os.path.basename(file_path)}")
-                
                 with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                     for line_no, line in enumerate(f, 1):
                         if len(line) > 2000: continue
@@ -292,32 +365,68 @@ class SecretSweepApp(ctk.CTk):
                                 if label in CREDIT_CARDS and not self.validate_luhn(clean):
                                     continue
 
+                                if label == "TCKN" and not self.validate_tckn(clean):
+                                    continue
+
                                 masked = clean[:2] + "****" + clean[-2:]
                                 issue = {"file": file_path, "line": line_no, "type": label, "data": masked}
                                 found_issues.append(issue)
-                                self.log_message(f"🚨 [MATCH: {label}] -> {os.path.basename(file_path)} : Ln {line_no}")
-            except Exception:
-                pass
+                                msg = f"🚨 [MATCH: {label}] -> {os.path.basename(file_path)} : Ln {line_no}"
+                                self.after(0, lambda m=msg: self.log_message(m))
+            except Exception as e:
+                error_count += 1
+                err_msg = f"⚠️ [HATA] Dosya okunamadı: {os.path.basename(file_path)}"
+                self.after(0, lambda m=err_msg: self.log_message(m))
 
-        # Raporlama
-        report_name = f"SecretSweep_Report_{datetime.now().strftime('%Y%m%d_%H%M')}.json"
-        report_path = os.path.join(self.target_folder, report_name)
-        with open(report_path, 'w', encoding='utf-8') as f:
-            json.dump(found_issues, f, ensure_ascii=False, indent=4)
-        
+        elapsed = (datetime.now() - start_time).total_seconds()
+        elapsed_str = f"{elapsed:.1f}s"
+
+        if not self._cancel_scan:
+            # Raporlama
+            report_name = f"SecretSweep_Report_{datetime.now().strftime('%Y%m%d_%H%M')}.json"
+            report_path = os.path.join(self.target_folder, report_name)
+            try:
+                with open(report_path, 'w', encoding='utf-8') as f:
+                    json.dump(found_issues, f, ensure_ascii=False, indent=4)
+                report_saved = True
+            except Exception as e:
+                report_saved = False
+                report_path = str(e)
+
+            def _finish():
+                self.lbl_status.configure(text=f"Tarama Tamamlandı. ({elapsed_str})")
+                self.log_message("-" * 60)
+                self.log_message(f">>> SCAN COMPLETE. {len(found_issues)} ISSUES FOUND. ({elapsed_str}, {error_count} dosya okunamadı)")
+                if report_saved:
+                    self.log_message(f">>> Report saved to: {report_path}")
+                    self._last_report_path = report_path
+                    self.btn_open_report.configure(state="normal")
+                    messagebox.showinfo(
+                        "Tarama Bitti",
+                        f"İşlem Tamamlandı!\n"
+                        f"Bulunan riskli veri: {len(found_issues)}\n"
+                        f"Geçen süre: {elapsed_str}\n"
+                        f"Okunamayan dosya: {error_count}\n"
+                        f"Rapor: {report_path}"
+                    )
+                else:
+                    messagebox.showwarning(
+                        "Tarama Bitti",
+                        f"Tarama tamamlandı fakat rapor kaydedilemedi.\n"
+                        f"Bulunan riskli veri: {len(found_issues)}\n"
+                        f"Geçen süre: {elapsed_str}"
+                    )
+            self.after(0, _finish)
+        else:
+            self.after(0, lambda: self.lbl_status.configure(text="Tarama iptal edildi."))
+
+        self.after(0, self._reset_buttons)
+
+    def _reset_buttons(self):
         self.is_scanning = False
         self.btn_start.configure(state="normal")
         self.btn_select.configure(state="normal")
-        self.lbl_status.configure(text="Tarama Tamamlandı.")
-        self.log_message("-" * 60)
-        self.log_message(f">>> SCAN COMPLETE. {len(found_issues)} ISSUES FOUND.")
-        self.log_message(f">>> Report saved to: {report_path}")
-        messagebox.showinfo(
-            "Tarama Bitti",
-            f"İşlem Tamamlandı!\n"
-            f"Bulunan riskli veri: {len(found_issues)}\n"
-            f"Rapor: {report_path}"
-        )
+        self.btn_cancel.configure(state="disabled")
 
 if __name__ == "__main__":
     app = SecretSweepApp()
