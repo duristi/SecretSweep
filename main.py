@@ -19,7 +19,7 @@ PATTERNS = {
     "MASTER": r"\b5[1-5][0-9]{14}\b",
     "AMEX": r"\b3[47][0-9]{13}\b",
     "TR_IBAN": r"\bTR\d{2}\s?(\d{4}\s?){5}\d{2}\b",
-    "TCKN": r"\b[1-9]{1}[0-9]{9}[0,2,4,6,8]{1}\b",
+    "TCKN": r"\b[1-9][0-9]{9}[02468]\b",
     "AWS_KEY": r"\bAKIA[0-9A-Z]{16}\b",
     "PRIVATE_KEY": r"-----BEGIN [A-Z]+ PRIVATE KEY-----",
     "EMAIL": r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b"
@@ -264,7 +264,15 @@ class SecretSweepApp(ctk.CTk):
         
         total_files = len(file_list)
         found_issues = []
-        
+
+        if total_files == 0:
+            self.log_message(">>> No eligible files found in the selected directory.")
+            self.is_scanning = False
+            self.btn_start.configure(state="normal")
+            self.btn_select.configure(state="normal")
+            self.lbl_status.configure(text="Taranacak dosya bulunamadı.")
+            return
+
         for index, file_path in enumerate(file_list):
             try:
                 progress = (index + 1) / total_files
@@ -293,7 +301,8 @@ class SecretSweepApp(ctk.CTk):
 
         # Raporlama
         report_name = f"SecretSweep_Report_{datetime.now().strftime('%Y%m%d_%H%M')}.json"
-        with open(report_name, 'w', encoding='utf-8') as f:
+        report_path = os.path.join(self.target_folder, report_name)
+        with open(report_path, 'w', encoding='utf-8') as f:
             json.dump(found_issues, f, ensure_ascii=False, indent=4)
         
         self.is_scanning = False
@@ -302,8 +311,13 @@ class SecretSweepApp(ctk.CTk):
         self.lbl_status.configure(text="Tarama Tamamlandı.")
         self.log_message("-" * 60)
         self.log_message(f">>> SCAN COMPLETE. {len(found_issues)} ISSUES FOUND.")
-        self.log_message(f">>> Report saved to: {report_name}")
-        messagebox.showinfo("Tarama Bitti", f"İşlem Tamamlandı!\nToplam {len(found_issues)} adet riskli veri bulundu.")
+        self.log_message(f">>> Report saved to: {report_path}")
+        messagebox.showinfo(
+            "Tarama Bitti",
+            f"İşlem Tamamlandı!\n"
+            f"Bulunan riskli veri: {len(found_issues)}\n"
+            f"Rapor: {report_path}"
+        )
 
 if __name__ == "__main__":
     app = SecretSweepApp()
